@@ -1,5 +1,3 @@
-namespace ConsoleApp1;
-
 // ============================================================================
 // PATCH / DELETE tests for IncomingController (external running API)
 // 
@@ -76,7 +74,7 @@ public sealed class IncomingWagonPatchDeleteTests
     // tn: int
 
     [Fact]
-    public async Task Patch_WithoutToken_ReturnsUnauthorizedOrForbidden()
+    public async Task INC_A_02_Patch_WithoutToken_ReturnsUnauthorizedOrForbidden()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
@@ -96,7 +94,7 @@ public sealed class IncomingWagonPatchDeleteTests
     }
 
     [Fact]
-    public async Task Patch_WhenIdNotFound_ReturnsOk_BusinessNotFound()
+    public async Task INC_U_02_Patch_WhenNotFound_ReturnsOk_AndSuccessFalse_AndHasErrorTrue()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
@@ -141,7 +139,7 @@ public sealed class IncomingWagonPatchDeleteTests
     }
 
     [Fact]
-    public async Task Patch_WhenValid_ReturnsOk_AndIsUpdatedTrue()
+    public async Task INC_U_01_Patch_WhenExists_ReturnsOk_AndSuccessTrue_AndIsUpdatedTrue()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
@@ -180,7 +178,7 @@ public sealed class IncomingWagonPatchDeleteTests
     }
 
     [Fact]
-    public async Task Delete_WithoutToken_ReturnsUnauthorizedOrForbidden()
+    public async Task INC_A_03_Delete_WithoutToken_ReturnsUnauthorizedOrForbidden()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
@@ -199,7 +197,7 @@ public sealed class IncomingWagonPatchDeleteTests
     }
 
     [Fact]
-    public async Task Delete_WhenIdNotFound_ReturnsOk_BusinessNotFound()
+    public async Task INC_D_02_Delete_WhenNotFound_ReturnsOk_AndSuccessFalse_AndHasErrorTrue()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
@@ -227,7 +225,7 @@ public sealed class IncomingWagonPatchDeleteTests
     }
 
     [Fact]
-    public async Task Delete_WhenValid_ReturnsOk_AndIsDeletedTrue()
+    public async Task INC_D_01_Delete_WhenExists_ReturnsOk_AndSuccessTrue_AndIsDeletedTrue()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
