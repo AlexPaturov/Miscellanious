@@ -1,25 +1,32 @@
 {
   "format": 1,
   "restore": {
-    "/home/lex/RiderProjects/Miscellanious/ConsoleApp1/ConsoleApp1.csproj": {}
+    "C:\\Work\\Miscellanious\\ConsoleApp1.csproj": {}
   },
   "projects": {
-    "/home/lex/RiderProjects/Miscellanious/ConsoleApp1/ConsoleApp1.csproj": {
+    "C:\\Work\\Miscellanious\\ConsoleApp1.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/lex/RiderProjects/Miscellanious/ConsoleApp1/ConsoleApp1.csproj",
+        "projectUniqueName": "C:\\Work\\Miscellanious\\ConsoleApp1.csproj",
         "projectName": "ConsoleApp1",
-        "projectPath": "/home/lex/RiderProjects/Miscellanious/ConsoleApp1/ConsoleApp1.csproj",
-        "packagesPath": "/home/lex/.nuget/packages/",
-        "outputPath": "/home/lex/RiderProjects/Miscellanious/ConsoleApp1/obj/",
+        "projectPath": "C:\\Work\\Miscellanious\\ConsoleApp1.csproj",
+        "packagesPath": "C:\\Users\\lex\\.nuget\\packages\\",
+        "outputPath": "C:\\Work\\Miscellanious\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/home/lex/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\lex\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -37,7 +44,8 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        }
+        },
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net8.0": {
@@ -58,7 +66,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/8.0.417/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

@@ -7,4 +7,11 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <None Remove="testsMatrix.md" />
+      <None Remove="techdebt.md" />
+      <None Remove="RM_update_delete.md" />
+      <None Remove="methods.md" />
+    </ItemGroup>
+
 </Project>
