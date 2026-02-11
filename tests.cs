@@ -365,6 +365,4 @@ public static class GpriPayloadBuilder
 
 ## TECHDEBT-003: PATCH not found/validation semantics
 
-Сейчас PATCH /incoming/wagons/{id} возвращает 400 BadRequest на сценариях, где ожидается domain-not-found/validation split.
-Нужно унифицировать контракт: отделить validation (400) от domain not found (200 + Success=false) либо перейти на 404.
-Отложено: breaking change для API + client (2 системы).
+Бизнес-проверки реального объекта перенести на уровень client business cases / e2e; API IT оставить контрактными
