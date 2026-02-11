@@ -363,6 +363,32 @@ public static class GpriPayloadBuilder
         => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }
 
-## TECHDEBT-003: PATCH not found/validation semantics
+## TECHDEBT-003: Unify validation + test levels separation (PATCH/DELETE)
 
-Бизнес-проверки реального объекта перенести на уровень client business cases / e2e; API IT оставить контрактными
+**Problem**
+    Сейчас интеграционные тесты API проверяют минимальный контракт (ответ != null),
+но не проверяют полноценный бизнес-объект.
+    Часть бизнес-ассертов смешана с API-контрактными тестами.
+
+    Также валидация не структурирована:
+- invalid id → 400
+    - invalid payload → 400
+    - domain not found — поведение не унифицировано
+
+    **Decision**
+    1) API integration tests оставить контрактными:
+- проверка HTTP-кода
+    - проверка DbResult (Success/HasError/ErrorMessage/IsDeleted)
+    - без глубоких бизнес-проверок доменной модели
+
+2) Проверку реального объекта и бизнес-сценариев перенести на уровень:
+- client business tests
+    - или E2E тестов
+
+Не менять сейчас (затрагивает 2 большие системы).
+
+**Target state**
+    - Чёткое разделение:
+- API IT → транспорт и контракт
+    - Client/E2E → бизнес-кейсы и доменная корректность
+    - Усилить DbResult ассерты вместо проверки "object != null"
