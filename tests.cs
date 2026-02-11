@@ -362,3 +362,9 @@ public static class GpriPayloadBuilder
     private static string Escape(string s)
         => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }
+
+## TECHDEBT-003: PATCH not found/validation semantics
+
+Сейчас PATCH /incoming/wagons/{id} возвращает 400 BadRequest на сценариях, где ожидается domain-not-found/validation split.
+Нужно унифицировать контракт: отделить validation (400) от domain not found (200 + Success=false) либо перейти на 404.
+Отложено: breaking change для API + client (2 системы).
