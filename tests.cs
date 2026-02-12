@@ -1,100 +1,19 @@
-// ============================================================================
-// PATCH / DELETE tests for IncomingController (external running API)
-// 
-// Assumptions based on our current test infrastructure:
-// - TestHost(TestSettings.Default).CreateClient() returns HttpClient to external API
-// - JwtTokenClient.GetDevTokenAsync() returns JWT string
-// - ApiRouters has IncomingWagons(apiVersion)
-// - Response body for business endpoints is an *encoded string* that can be decoded
-//   via DbResultCodec.DecodeEncodedDbResult(string)
-// - Request body for create/patch is JSON envelope with base64 string in Data
-//   built by DbResultEnvelopeBuilder.BuildRequestBodyWithBase64Data(base64)
-// - You want: NotFound treated as 200 with business error (Success=false)
-// 
-// If any of these differs, tell me what exact payload/response is used and I’ll
-// adjust quickly.
-// ============================================================================
-
 // -----------------------------
-// File: tests/BosVesWebApi.IntegrationTests/Infrastructure/ApiRouters.cs
-// (ADD these methods if missing)
-// -----------------------------
-namespace BosVesWebApi.IntegrationTests.Infrastructure;
-
-public static class ApiRouters
-{
-    // already exists:
-    // public static string IncomingWagons(string apiVersion) => $"/api/v{apiVersion}/incoming/wagons";
-
-    public static string IncomingWagonById(string apiVersion, int id)
-    {
-        return $"/api/v{apiVersion}/incoming/wagons/{id}";
-    }
-
-    public static string IncomingWagonPatchById(string apiVersion, int id)
-    {
-        // PATCH has the same route as resource by id
-        return IncomingWagonById(apiVersion, id);
-    }
-
-    public static string IncomingWagonDeleteById(string apiVersion, int id)
-    {
-        // DELETE has the same route as resource by id
-        return IncomingWagonById(apiVersion, id);
-    }
-}
-
-
-// -----------------------------
-// File: tests/BosVesWebApi.IntegrationTests/Tests/IncomingWagonPatchDeleteTests.cs
+// File: tests/BosVesWebApi.IntegrationTests/Tests/IncomingWagonGetByDateTimeNvagTests.cs
 // -----------------------------
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using BosVesWebApi.IntegrationTests.Infrastructure;
-using BosVesWebApi.IntegrationTests.Infrastructure.Encoding;
-using BosVesWebApi.IntegrationTests.Infrastructure.PayloadBuilders.Gp;
-using BosVesWebApi.IntegrationTests.Infrastructure.PayloadBuilders.Db;
 using Xunit;
 
 namespace BosVesWebApi.IntegrationTests.Tests;
 
-/// <summary>
-/// PATCH / DELETE tests for Incoming wagons.
-/// 
-/// IMPORTANT: These are *integration tests against externally running API*.
-/// API must be running on TestSettings.Default.BaseUri.
-/// </summary>
-public sealed class IncomingWagonPatchDeleteTests
+public sealed class IncomingWagonGetByDateTimeNvagTests
 {
     private const string ApiVersion = "1";
 
-    // Keep vesy/tn types as agreed:
-    // vesy: short (Int16)
-    // tn: int
-
     [Fact]
-    public async Task INC_A_02_Patch_WithoutToken_ReturnsUnauthorizedOrForbidden()
-    {
-        // Arrange
-        using var host = new TestHost(TestSettings.Default);
-        using var http = host.CreateClient();
-
-        // choose some id (doesn't matter)
-        int id = 1;
-
-        // Act
-        using var response = await PatchAsync(http, ApiRouters.IncomingWagonPatchById(ApiVersion, id), bodyJson: "{}");
-
-        // Assert
-        Assert.True(
-            response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
-            $"Expected 401/403, got {(int)response.StatusCode} {response.StatusCode}"
-        );
-    }
-
-    [Fact]
-    public async Task INC_U_02_Patch_WhenNotFound_ReturnsOk_AndSuccessFalse_AndHasErrorTrue()
+    public async Task INC_R_07_Get_ByDateTimeNvag_WhenExists_ReturnsOk_AndBodyNotEmpty()
     {
         // Arrange
         using var host = new TestHost(TestSettings.Default);
@@ -104,291 +23,107 @@ public sealed class IncomingWagonPatchDeleteTests
         var token = await tokenClient.GetDevTokenAsync();
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        // id that should not exist
-        int id = int.MaxValue;
-
-        // Minimal patch body (if your endpoint requires payload, use proper one)
-        // Here we send a valid envelope with "fake" gpri to avoid model binding issues.
-        string patchBody = BuildEncodedGpriEnvelopeJson(
-            dt: DateTime.Today,
-            vr: DateTime.Now.ToString("HH:mm:ss"),
-            nvag: "99999999",
-            npp: 1,
-            vesy: 1,
-            tn: 7000000
-        );
-
-        // Act
-        using var response = await PatchAsync(http, ApiRouters.IncomingWagonPatchById(ApiVersion, id), patchBody);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var dto = await ReadDbResultAsync(response);
-
-        // Your contract note:
-        // - Success: false on business error
-        // - HasError: true/false allowed, but for notfound usually true
-        Assert.False(dto.Success);
-
-        // If your API fills ErrorMessage on error, this should be non-empty:
-        if (dto.HasError)
-        {
-            Assert.False(string.IsNullOrWhiteSpace(dto.ErrorMessage));
-        }
-    }
-
-    [Fact]
-    public async Task INC_U_01_Patch_WhenExists_ReturnsOk_AndSuccessTrue_AndIsUpdatedTrue()
-    {
-        // Arrange
-        using var host = new TestHost(TestSettings.Default);
-        using var http = host.CreateClient();
-
-        var tokenClient = new JwtTokenClient(http);
-        var token = await tokenClient.GetDevTokenAsync();
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        // 1) Create a fresh wagon to get real id
-        int createdId = await CreateWagonAndReturnIdAsync(http);
-
-        // 2) Patch it (change VR to current time, or any field your API treats as update)
-        string patchBody = BuildEncodedGpriEnvelopeJson(
-            dt: DateTime.Today,
-            vr: DateTime.Now.AddSeconds(1).ToString("HH:mm:ss"),
-            nvag: GenerateNvag(),
-            npp: 2,
-            vesy: 2,
-            tn: 7001378
-        );
-
-        // Act
-        using var response = await PatchAsync(http, ApiRouters.IncomingWagonPatchById(ApiVersion, createdId), patchBody);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var dto = await ReadDbResultAsync(response);
-        Assert.True(dto.Success);
-        Assert.False(dto.HasError);
-        Assert.Null(dto.ErrorMessage); // per your fix: null on success
-
-        // You mentioned IsUpdated flag exists.
-        Assert.True(dto.IsUpdated);
-    }
-
-    [Fact]
-    public async Task INC_A_03_Delete_WithoutToken_ReturnsUnauthorizedOrForbidden()
-    {
-        // Arrange
-        using var host = new TestHost(TestSettings.Default);
-        using var http = host.CreateClient();
-
-        int id = 1;
-
-        // Act
-        using var response = await http.DeleteAsync(ApiRouters.IncomingWagonDeleteById(ApiVersion, id));
-
-        // Assert
-        Assert.True(
-            response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
-            $"Expected 401/403, got {(int)response.StatusCode} {response.StatusCode}"
-        );
-    }
-
-    [Fact]
-    public async Task INC_D_02_Delete_WhenNotFound_ReturnsOk_AndSuccessFalse_AndHasErrorTrue()
-    {
-        // Arrange
-        using var host = new TestHost(TestSettings.Default);
-        using var http = host.CreateClient();
-
-        var tokenClient = new JwtTokenClient(http);
-        var token = await tokenClient.GetDevTokenAsync();
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        int id = int.MaxValue;
-
-        // Act
-        using var response = await http.DeleteAsync(ApiRouters.IncomingWagonDeleteById(ApiVersion, id));
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var dto = await ReadDbResultAsync(response);
-        Assert.False(dto.Success);
-
-        if (dto.HasError)
-        {
-            Assert.False(string.IsNullOrWhiteSpace(dto.ErrorMessage));
-        }
-    }
-
-    [Fact]
-    public async Task INC_D_01_Delete_WhenExists_ReturnsOk_AndSuccessTrue_AndIsDeletedTrue()
-    {
-        // Arrange
-        using var host = new TestHost(TestSettings.Default);
-        using var http = host.CreateClient();
-
-        var tokenClient = new JwtTokenClient(http);
-        var token = await tokenClient.GetDevTokenAsync();
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        int createdId = await CreateWagonAndReturnIdAsync(http);
-
-        // Act
-        using var response = await http.DeleteAsync(ApiRouters.IncomingWagonDeleteById(ApiVersion, createdId));
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var dto = await ReadDbResultAsync(response);
-        Assert.True(dto.Success);
-        Assert.False(dto.HasError);
-        Assert.Null(dto.ErrorMessage);
-
-        Assert.True(dto.IsDeleted);
-    }
-
-
-    // -----------------------------
-    // Helpers
-    // -----------------------------
-
-    private static async Task<int> CreateWagonAndReturnIdAsync(HttpClient http)
-    {
-        // NOTE: this assumes your POST /incoming/wagons returns Created and encoded body with Id.
-
+        // 1) Create a fresh wagon (we need dt/vr/nvag/vesy to query it back)
         var dt = DateTime.Today;
         var vr = DateTime.Now.ToString("HH:mm:ss");
-        var nvag = GenerateNvag();
-        short npp = (short)Random.Shared.Next(1, 30000);
+        var nvag = Random.Shared.Next(10_000_000, 99_999_999).ToString();
+        var npp = Random.Shared.Next(1, 30_000);
         short vesy = 2;
         int tn = 7001378;
 
+        // Reuse your existing Create body builder (the same one you used in create tests)
         string createBody = BuildEncodedGpriEnvelopeJson(dt, vr, nvag, npp, vesy, tn);
 
-        using var content = new StringContent(createBody, Encoding.UTF8, "application/json");
-        using var response = await http.PostAsync(ApiRouters.IncomingWagons(ApiVersion), content);
-
-        // Some of your tests expect 201
-        Assert.True(
-            response.StatusCode is HttpStatusCode.Created or HttpStatusCode.OK,
-            $"Expected 201/200, got {(int)response.StatusCode} {response.StatusCode}"
-        );
-
-        var dto = await ReadDbResultAsync(response);
-        Assert.True(dto.Success);
-
-        if (dto.Id is null)
+        using (var createContent = new StringContent(createBody, System.Text.Encoding.UTF8, "application/json"))
+        using (var createResponse = await http.PostAsync(ApiRouters.IncomingWagons(ApiVersion), createContent))
         {
-            throw new InvalidOperationException("Create did not return Id (DbResultDto.Id is null)." );
+            Assert.True(
+                createResponse.StatusCode is HttpStatusCode.Created or HttpStatusCode.OK,
+                $"Expected 201/200 from Create, got {(int)createResponse.StatusCode} {createResponse.StatusCode}"
+            );
         }
 
-        return dto.Id.Value;
+        // 2) GET by-date-time-nvag (max params)
+        // IMPORTANT: parameter names may differ in your API. If they do, change them here only.
+        var url =
+            $"/api/v{ApiVersion}/incoming/wagons/by-date-time-nvag" +
+            $"?dt={Uri.EscapeDataString(dt: dt.ToString("yyyy-MM-dd"))}" +
+            $"&vr={Uri.EscapeDataString(vr)}" +
+            $"&nvag={Uri.EscapeDataString(nvag)}" +
+            $"&vesy={vesy}";
+
+        // Act
+        using var response = await http.GetAsync(url);
+
+        // Assert (contract-minimum)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.False(string.IsNullOrWhiteSpace(body), "Expected non-empty response body for existing record.");
     }
 
-    private static string GenerateNvag()
-    {
-        // 8 digits, string
-        return Random.Shared.Next(10_000_000, 99_999_999).ToString();
-    }
-
+    // -------------------------------------------------------
+    // Keep this helper consistent with your existing builders.
+    // If you already have it in another test class, reuse it.
+    // -------------------------------------------------------
     private static string BuildEncodedGpriEnvelopeJson(DateTime dt, string vr, string nvag, int npp, short vesy, int tn)
     {
-        // Build minimal json for GPRI as your API expects.
-        // We reuse your existing builder (you already created it).
-        // It returns (json1, json2) for duplicates; here we need a single JSON.
+        string gpriJson = BosVesWebApi.IntegrationTests.Infrastructure.PayloadBuilders.Gp.GpriPayloadBuilder
+            .BuildMinimalJson(dt, vr, nvag, npp, vesy, tn);
 
-        string gpriJson = GpriPayloadBuilder.BuildMinimalJson(dt, vr, nvag, npp, vesy, tn);
+        string gpriBase64 = BosVesWebApi.IntegrationTests.Infrastructure.Encoding.Base64Codec.EncodeUtf8(gpriJson);
 
-        string gpriBase64 = Base64Codec.EncodeUtf8(gpriJson);
-        return DbResultEnvelopeBuilder.BuildRequestBodyWithBase64Data(gpriBase64);
-    }
-
-    private static async Task<DbResultDto> ReadDbResultAsync(HttpResponseMessage response)
-    {
-        string encoded = await response.Content.ReadAsStringAsync();
-
-        // Some APIs wrap string into JSON; if yours does, strip quotes here.
-        // Example: "SGVsbG8="
-        encoded = encoded.Trim();
-        if (encoded.Length >= 2 && encoded[0] == '"' && encoded[^1] == '"')
-        {
-            encoded = encoded.Substring(1, encoded.Length - 2);
-        }
-
-        return DbResultCodec.DecodeEncodedDbResult(encoded);
-    }
-
-    private static async Task<HttpResponseMessage> PatchAsync(HttpClient http, string url, string bodyJson)
-    {
-        using var content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
-        var request = new HttpRequestMessage(HttpMethod.Patch, url)
-        {
-            Content = content
-        };
-
-        return await http.SendAsync(request);
+        return BosVesWebApi.IntegrationTests.Infrastructure.PayloadBuilders.Db.DbResultEnvelopeBuilder
+            .BuildRequestBodyWithBase64Data(gpriBase64);
     }
 }
 
+using System.Globalization;
 
-// -----------------------------
-// File: tests/BosVesWebApi.IntegrationTests/Infrastructure/PayloadBuilders/Gp/GpriPayloadBuilder.cs
-// (ADD this method if missing; keep existing methods as-is)
-// -----------------------------
-namespace BosVesWebApi.IntegrationTests.Infrastructure.PayloadBuilders.Gp;
-
-public static class GpriPayloadBuilder
+public static ApiValidationResult ValidateDate(string date, string parameterName = "date")
 {
-    /// <summary>
-    /// Minimal JSON for GPRI payload.
-    /// If your API expects other field names/casing, adapt here.
-    /// </summary>
-    public static string BuildMinimalJson(DateTime dt, string vr, string nvag, int npp, short vesy, int tn)
+    if (string.IsNullOrWhiteSpace(date))
+        return ApiValidationResult.Failure(
+            parameterName,
+            $"Параметр {parameterName} не может быть пустым",
+            "не указана дата");
+
+    // Разрешаем ISO + legacy. Серверная культура НЕ участвует.
+    var formats = new[]
     {
-        // IMPORTANT: I’m using property names exactly as we used in earlier snippets.
-        // If your controller expects other schema, change here only (single point).
-        // 
-        // NOTE: dt serialized as yyyy-MM-dd to keep it stable.
+        "yyyy-MM-dd",
+        "yyyy-MM-ddTHH:mm:ss",
+        "yyyy-MM-ddTHH:mm:ss.fff",
+        "dd.MM.yyyy",               // legacy
+        "dd.MM.yyyy HH:mm:ss"       // если вдруг прилетает так
+    };
 
-        string date = dt.ToString("yyyy-MM-dd");
-
-        return $"{{\"dt\":\"{date}\",\"vr\":\"{Escape(vr)}\",\"nvag\":\"{Escape(nvag)}\",\"npp\":{npp},\"vesy\":{vesy},\"tn\":{tn}}}";
+    if (!DateTime.TryParseExact(
+            date,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
+            out var parsed))
+    {
+        return ApiValidationResult.Failure(
+            parameterName,
+            $"Неверный формат даты в параметре {parameterName}: {date}",
+            "неверный формат даты",
+            date);
     }
 
-    private static string Escape(string s)
-        => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    return ApiValidationResult.Success(parsed, parameterName);
 }
 
-## TECHDEBT-003: Unify validation + test levels separation (PATCH/DELETE)
+public async Task<IActionResult> GetWagonsByDate(
+    [FromQuery, Required] string date,
+    [FromQuery, Required] string vesy)
+{
+    var vDate = ApiValidator.ValidateDate(date, "date");
+    if (!vDate.IsValid)
+        return BadRequest(JsonHelper.SerializeAndEncode(DbResult<object>.Fail(vDate.ErrorMessage, vDate.UserMessage)));
 
-**Problem**
-    Сейчас интеграционные тесты API проверяют минимальный контракт (ответ != null),
-но не проверяют полноценный бизнес-объект.
-    Часть бизнес-ассертов смешана с API-контрактными тестами.
-
-    Также валидация не структурирована:
-- invalid id → 400
-    - invalid payload → 400
-    - domain not found — поведение не унифицировано
-
-    **Decision**
-    1) API integration tests оставить контрактными:
-- проверка HTTP-кода
-    - проверка DbResult (Success/HasError/ErrorMessage/IsDeleted)
-    - без глубоких бизнес-проверок доменной модели
-
-2) Проверку реального объекта и бизнес-сценариев перенести на уровень:
-- client business tests
-    - или E2E тестов
-
-Не менять сейчас (затрагивает 2 большие системы).
-
-**Target state**
-    - Чёткое разделение:
-- API IT → транспорт и контракт
-    - Client/E2E → бизнес-кейсы и доменная корректность
-    - Усилить DbResult ассерты вместо проверки "object != null"
+    var result = await _data.GetByDt((DateTime)vDate.Value!, vesy);
+    var encoded = JsonHelper.SerializeAndEncode(result);
+    return result.Success ? Ok(encoded) : BadRequest(encoded);
+}
